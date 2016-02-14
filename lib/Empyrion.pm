@@ -1,5 +1,7 @@
+package Empyrion;
+# ABSTRACT: Empyrion Galactic Survival Perl Tools
+
 use strict;
 use warnings;
-package Empyrion;
 
 1;

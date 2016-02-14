@@ -1,2 +1,4 @@
 Empyrion-*
 .build
+*.sqlite
+*.log

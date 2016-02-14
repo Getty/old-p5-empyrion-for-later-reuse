@@ -1,0 +1,15 @@
+#!/usr/bin/env perl
+# PODNAME: palpatine
+# ABSTRACT: Empyrion Palpatine Server Manager
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib $FindBin::Dir . "/../lib";
+
+use Empyrion::Palpatine;
+
+$|=1;
+
+exit Empyrion::Palpatine->run;
