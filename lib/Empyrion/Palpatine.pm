@@ -8,7 +8,6 @@ use MooX qw(
 use POE qw(
   Component::Server::HTTPServer
   Component::Server::HTTPServer::Handler
-  Component::Server::HTTPServer::StaticHandler
   Component::Server::TCP
   Filter::JSONMaybeXS
   Filter::Line
@@ -19,29 +18,47 @@ use POE qw(
 
 use Protocol::WebSocket::Handshake::Server;
 use Protocol::WebSocket::Frame;
-use Plack::App::Directory;
 
+use POE::Component::Server::HTTPServer::Handler;
 use Scalar::Util qw( blessed );
 use File::ShareDir::ProjectDistDir;
 use Path::Tiny;
 use JSON::MaybeXS;
 use HTTP::Status;
 use Data::Dumper;
+use HTTP::Message::PSGI;
 
+use Empyrion::Palpatine::Web;
 use Empyrion::DB;
 
-our $VERSION = '0.000';
+our $VERSION = $Empyrion::VERSION || '0.000';
 
-has ws_port => (
+option ws_port => (
   is => 'ro',
+  format => 'i',
   lazy => 1,
-  default => sub { 30008 },
+  default => sub { 33334 },
 );
 
-has port => (
+option port => (
   is => 'ro',
+  format => 'i',
   lazy => 1,
   default => sub { 33333 },
+);
+
+option default_admin => (
+  is => 'ro',
+  format => 's',
+  lazy => 1,
+  default => sub { 'admin' },
+);
+
+option default_password => (
+  is => 'ro',
+  format => 's',
+  lazy => 1,
+  default => sub { 'fortheempire' },
 );
 
 has _ws_conns => (
@@ -84,27 +101,14 @@ has ws_server => (
   },
 );
 
-# has web_server => (
-#   is => 'ro',
-#   lazy => 1,
-#   default => sub {
-#     my ( $self ) = @_;
-#     my $web_server = POE::Component::Server::PSGI->new(
-#       port => $self->port,
-#     );
-#     $web_server->run($self->web_app);
-#     return $web_server;
-#   },
-# );
-
-# has web_app => (
-#   is => 'ro',
-#   lazy => 1,
-#   default => sub {
-#     my ( $self ) = @_;
-#     Plack::App::Directory->new(root => $self->web_root)->to_app;
-#   },
-# );
+has web_app => (
+  is => 'ro',
+  lazy => 1,
+  default => sub {
+    my ( $self ) = @_;
+    return Empyrion::Palpatine::Web->new( palpatine => $self )->to_psgi_app;
+  },
+);
 
 has web_server => (
   is => 'ro',
@@ -114,8 +118,11 @@ has web_server => (
     my $http_server = POE::Component::Server::HTTPServer->new;
     $http_server->port($self->port);
     $http_server->handlers([
-      '/' => new_handler('StaticHandler',$self->web_root),
-      # '/data.json' => sub { $self->data_handler(@_) },
+      '/' => sub {
+        my $context = shift;
+        $context->{response} = res_from_psgi($self->web_app->(req_to_psgi($context->{request})));
+        return H_FINAL;
+      },
     ]);
     $http_server->create_server();
   },
@@ -144,6 +151,22 @@ has db => (
   },
 );
 
+has setup => (
+  is => 'rw',
+  lazy => 1,
+  default => sub {
+    my ( $self ) = @_;
+    my %setup;
+    my @entries = $self->db->resultset('Setup')->search_rs({
+      users_id => undef,
+    })->all;
+    for (@entries) {
+      $setup{$_->key} = $_->value if defined $_->value;
+    }
+    return { %setup };
+  },
+);
+
 sub BUILD {
   my ( $self ) = @_;
   print "  ____   _    _     ____   _  _____ ___ _   _ _____\n";
@@ -161,8 +184,17 @@ sub BUILD {
     print "done\n";
   } else {
     print " - Deploying database to ".$self->current_db_filename."... ";
-    $self->db->deploy unless $dbexist;
+    $self->db->deploy;
     print "done\n";
+    if ($self->default_admin) {
+      print "   Installing admin user '".$self->default_admin."' with password '".$self->default_password."'... ";
+      $self->db->resultset('User')->create({
+        login => $self->default_admin,
+        password => $self->default_password,
+        admin => 1,
+      });      
+      print "done\n";
+    }
   }
   print " - Starting websocket server on port ".$self->ws_port."... ";
   $self->ws_server;
@@ -170,8 +202,42 @@ sub BUILD {
   print " - Starting web server on port ".$self->port."... ";
   $self->web_server;
   print "done\n";
-  print "\n";
-  print "Ready to control the galaxy... FOR THE EMPIRE\n\n";
+  $self->autostart_gameservers;
+  print <<'__EOF__'
+                                  ___,_   _ 
+ Ready to control the galaxy... [:t_:::;t"t"+
+                                `=_ "`[ j.:\=\
+       FOR THE EMPIRE!           _,:-.| -"_:\=\
+                            _,-=":.:%.."+"+|:\=\
+                   _ _____,:,,;,==.==+nnnpppppppt
+                _.;-^-._-:._::.'';nn;::m;:%%%%%%%\
+              .;-'_::-:_"--;_:. ((888:(@) ,,;::^%%%,
+           __='::_:"`::::::::"-;_`YPP::; (d8B((@b."%\
+        __,-:-:::::::::`::`::::::"--;_(@' 88P':^" ;nn:,
+       ;-':::::`%%%\::---:::-:_::::::_"-;_.::((@,(88J::\
+      """"""""""""""`------`.__.-:::::;___;;::`^__;;;:..7
+                                            """"
+__EOF__
+}
+
+sub autostart_gameservers {
+  my ( $self ) = @_;
+  my @servers = $self->db->resultset('InstallationGameServer')->search_rs({
+    autostart => 1,
+  },{
+    order_by => { -desc => 'id' },
+  })->all;
+  my $count = scalar @servers;
+  if ($count) {
+    print " - Found ".$count." game server for autostart\n";
+    for my $server (@servers) {
+      print "   Starting ".$server->name." on port ".$server->port."...";
+      $server->start;
+      print "done\n";
+    }
+  } else {
+    print " - No autostart game server...\n";
+  }
 }
 
 sub run {

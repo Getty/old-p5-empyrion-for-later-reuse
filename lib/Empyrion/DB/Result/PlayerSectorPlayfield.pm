@@ -1,4 +1,4 @@
-package Empyrion::DB::Result::PlayerSystemPlayfield;
+package Empyrion::DB::Result::PlayerSectorPlayfield;
 # ABSTRACT: 
 
 use Moo;
@@ -6,7 +6,7 @@ extends 'DBIx::Class::Core';
 
 use DBIx::Class::Candy;
 
-table 'player_system_playfield';
+table 'player_sector_playfield';
 
 primary_column id => {
   data_type => "integer",
@@ -14,7 +14,7 @@ primary_column id => {
   is_auto_increment => 1
 };
 
-column system_playfield_id => {
+column sector_playfield_id => {
   data_type => 'integer',
   is_nullable => 0,
 };
@@ -33,9 +33,9 @@ column status => {
   is_nullable => 0,
 };
 
-unique_constraint [ qw/system_playfield_id player_id/ ];
+unique_constraint [ qw/sector_playfield_id player_id/ ];
 
-belongs_to system_playfield => "Empyrion::DB::Result::SystemPlayfield", 'system_playfield_id';
+belongs_to sector_playfield => "Empyrion::DB::Result::SectorPlayfield", 'sector_playfield_id';
 belongs_to player => "Empyrion::DB::Result::Player", 'player_id';
 
 1;

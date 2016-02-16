@@ -15,7 +15,7 @@ primary_column id => {
 };
 
 # Used in interfaces not in game
-unique_column name => {
+column name => {
   data_type => 'text',
   is_nullable => 0,
 };
@@ -208,7 +208,7 @@ has_many playfield_biomes => 'Empyrion::DB::Result::PlayfieldBiome', 'playfield_
   cascade_delete => 1,
 };
 
-has_many system_playfields => 'Empyrion::DB::Result::SystemPlayfield', 'playfield_id', {
+has_many sector_playfields => 'Empyrion::DB::Result::SectorPlayfield', 'playfield_id', {
   cascade_delete => 1,
 };
 

@@ -24,17 +24,11 @@ column steam_id => {
   is_nullable => 0,
 };
 
-column joined => {
-  data_type => "integer",
-  is_nullable => 0,
+has_many player_sector_playfields => 'Empyrion::DB::Result::PlayerSectorPlayfield', 'player_id', {
+  cascade_delete => 1,
 };
 
-column last_seen => {
-  data_type => "integer",
-  is_nullable => 0,
-};
-
-has_many player_system_playfields => 'Empyrion::DB::Result::PlayerSystemPlayfield', 'player_id', {
+has_many installation_game_players => 'Empyrion::DB::Result::InstallationGamePlayer', 'player_id', {
   cascade_delete => 1,
 };
 
