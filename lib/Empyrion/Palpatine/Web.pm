@@ -8,6 +8,11 @@ use File::ShareDir::ProjectDistDir;
 use Path::Tiny;
 use JSON::MaybeXS;
 
+has palpatine => (
+  is => 'ro',
+  required => 1,
+);
+
 has session => (
   is => 'ro',
   lazy => 1,
@@ -16,7 +21,7 @@ has session => (
 
 sub _build_session {
   my ( $self ) = @_;
-  my $session_dir = path('.','palpatine_sessions')->absolute;
+  my $session_dir = path($self->palpatine->workdir,'palpatine_sessions')->absolute;
   $session_dir->mkpath;
   Plack::Middleware::Session->new(
     store => Plack::Session::Store::File->new(

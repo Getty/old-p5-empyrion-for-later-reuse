@@ -77,7 +77,7 @@ function goto_target(target, no_data) {
   } else {
     $('#main').html('<img src="/img/ajaxload.gif">');
     $.ajax({
-      url: '/' + target + '.json',
+      url: '/' + target,
       cache: false,
       complete: function(xhr, error) {
         if (error != 'success') {

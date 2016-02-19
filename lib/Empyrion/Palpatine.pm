@@ -27,6 +27,9 @@ use JSON::MaybeXS;
 use HTTP::Status;
 use Data::Dumper;
 use HTTP::Message::PSGI;
+use File::HomeDir;
+
+use File::Path;
 
 use Empyrion::Palpatine::Web;
 use Empyrion::DB;
@@ -59,6 +62,19 @@ option default_password => (
   format => 's',
   lazy => 1,
   default => sub { 'fortheempire' },
+);
+
+option workdir => (
+  is => 'ro',
+  format => 's',
+  lazy => 1,
+  default => sub {
+    my $workdir = File::HomeDir->my_home
+      ? path(File::HomeDir->my_home,'.p5-empyrion')->absolute
+      : path('.','.p5-empyrion')->absolute;
+    path($workdir)->mkpath unless -d $workdir;
+    return $workdir;
+  },
 );
 
 has _ws_conns => (
@@ -137,12 +153,15 @@ has web_root => (
 sub v0_db_filename { 'p5_empyrion_v0.sqlite' }
 sub current_db_filename { shift->v0_db_filename }
 
+sub v0_db { path($_[0]->workdir,$_[0]->v0_db_filename)->absolute }
+sub current_db { path($_[0]->workdir,$_[0]->v0_db_filename)->absolute }
+
 has db => (
   is => 'ro',
   lazy => 1,
   default => sub {
     my ( $self ) = @_;
-    return Empyrion::DB->connect('dbi:SQLite:dbname='.$self->current_db_filename, '', '', {
+    return Empyrion::DB->connect('dbi:SQLite:dbname='.$self->current_db, '', '', {
       AutoCommit => 1,
       RaiseError => 1,
       quote_char => '"',
@@ -177,13 +196,14 @@ sub BUILD {
   print "\n";
   print " ---- Empyrion Server & Content Manager v".$VERSION." ----\n";
   print "\n";
-  my $dbexist = -f $self->current_db_filename;
+  print " - Using work directory: ".$self->workdir."...\n";
+  my $dbexist = -f $self->current_db;
   if ($dbexist) {
-    print " - Opening database at ".$self->current_db_filename."... ";
+    print " - Opening database at ".$self->current_db."... ";
     $self->db;
     print "done\n";
   } else {
-    print " - Deploying database to ".$self->current_db_filename."... ";
+    print " - Deploying database to ".$self->current_db."... ";
     $self->db->deploy;
     print "done\n";
     if ($self->default_admin) {
